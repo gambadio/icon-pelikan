@@ -2,7 +2,7 @@
 
 *A brutalist, grain‑textured and ultra‑minimal Mac‑style generator that turns **any** square image into beautiful app icons in seconds.*
 
-![Icon Pelikan screenshot](assets/screenshot_light.png) <!--‑‑ replace with your own screenshot –-->
+![Icon Pelikan screenshot](assets/screenshot.png) <!--‑‑ replace with your own screenshot –-->
 
 ---
 
