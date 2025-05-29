@@ -1,16 +1,72 @@
-# Icon Pelikan
+# Icon Pelikan
 
-A minimal Mac-style icon generator with a brutalist grainy UI.
+*A brutalist, grain‑textured and ultra‑minimal Mac‑style generator that turns **any** square image into beautiful app icons in seconds.*
 
-## Setup (dev)
+![Icon Pelikan screenshot](assets/screenshot_light.png) <!--‑‑ replace with your own screenshot –-->
+
+---
+
+## ✨ Key Features
+| Area | Details |
+|------|---------|
+| **Instant Preview** | Drag‑and‑drop or open an image file and watch the live preview update with smooth fade‑in animation. |
+| **Canvas Controls** | • Canvas size 128 – 1024 px  • Image scale slider 50 – 100 %  • Corner radius 0 – 256 px |
+| **Shapes** | Rounded‑square or perfect circle masks. |
+| **Backgrounds** | Transparent by default or pick any solid colour with the integrated colour‑picker. |
+| **Presets** | One‑click presets for macOS, iOS, circle, square & default layouts. |
+| **Exports** | • **PNG** (any platform)  • **.iconset + .icns** bundles via macOS **`iconutil`** |
+| **UX Extras** | Animated rainbow title, grainy radial gradient backdrop, flat dark‑theme widgets, subtle value labels next to sliders. |
+| **Packaging** | Ships with a **PyInstaller** recipe for “double‑clickable” macOS `.app` bundles. |
+
+---
+
+## 🖥️ Quick Start
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+# 1 · Clone
+git clone https://github.com/YOUR‑USERNAME/icon‑pelikan.git
+cd icon‑pelikan
+
+# 2 · Create & activate a virtual env  (Python ≥ 3.10 recommended)
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+
+# 3 · Install runtime deps
 pip install -r requirements.txt
+
+# 4 · Run the app
 python main.py
 ```
 
-## Packaging for macOS
+The main window will open with a drag‑and‑drop hint.  
+Drop any **PNG/JPEG/WEBP/TIFF/BMP** or click **Open** to choose a file.
+
+---
+
+## 🗺️ Application Layout
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│           ICON PELIKAN  ← animated rainbow header            │
+├─────────────────────────────────────────────┬────────────────┤
+│                                             │  Canvas px ■  │
+│  [live image preview + grainy backdrop]      │  Scale %   ■  │
+│                                             │  Radius px ■  │
+│                                             │  Shape ▲▼     │
+│                                             │  Preset ▲▼    │
+│                                             │  ☐ Solid BG   │
+│                                             │  Pick Colour  │
+│                                             │  Save PNG     │
+│                                             │  Save .icns   │
+│                                             │               │
+└─────────────────────────────────────────────┴────────────────┘
+```
+
+---
+
+## 📦 Packaging for macOS
+
+Create a self‑contained `.app` bundle with [PyInstaller](https://pyinstaller.org):
 
 ```bash
 pip install pyinstaller
@@ -22,34 +78,79 @@ pyinstaller \
   main.py
 ```
 
-After PyInstaller finishes you’ll find `dist/Icon Pelikan.app` ready to drag into `/Applications`.
-
-## Generating icon_pelikan.icns
-
-If you only have the PNG:
-
-```bash
-# inside the repo root
-iconutil -c icns IconPelikan.iconset     # produced via the app’s “Save .icns”
-mv IconPelikan.icns assets/icon_pelikan.icns
-```
-
-## Smart features
-	•	Drag-and-drop image loading
-	•	Live sliders: canvas size / scale / radius
-	•	Circle or rounded-square mode
-	•	Optional solid background tint
-	•	Automatic Apple .iconset + .icns export (macOS iconutil)
-	•	Grainy radial gradient background rendered at runtime
-	•	Dark-theme widgets with custom flat buttons
+The finished bundle lives in `dist/Icon Pelikan.app`.  
+Drag it into **/Applications** and it should just work™.
 
 ---
 
-## 3 · What was fixed / improved
+## 🍏 Exporting Apple Icons
 
-* **Layout bug resolved** – controls now sit in a dedicated column that never clips, thanks to Qt layouts.  
-* **Modern aesthetic** – custom painter gives the noisy dark gradient; widgets carry flat brutalist styles. Qt lets us combine gradients & textures easily   
-* **Smart extras** – drag-and-drop, colour picker, .iconset → .icns conversion, DPI-aware previews, About box.  
-* **Packaging-ready** – the repo ships with requirements.txt + PyInstaller recipe; just add your toucan PNG to `assets/` as `icon_pelikan.png`.  
+`Save .icns` creates:
 
-Enjoy shipping **Icon Pelikan**!
+1. A temporary **\<name\>.iconset** folder with all required PNG sizes *(16 → 1024 px @1× & @2×)*.
+2. Runs the macOS tool **`iconutil -c icns`** to convert that folder to a single **.icns** file.
+
+> **Requirements:** macOS with **Xcode Command‑Line Tools** installed (`xcode-select --install`).
+
+On other platforms the button is disabled.
+
+---
+
+## 🏗️ Project Structure
+
+| Path | Purpose |
+|------|---------|
+| `main.py` | PySide6 GUI – widgets, layouts, gradients & event wiring |
+| `icon_processor.py` | Pure‑Pillow helpers for masking, scaling and Apple icon exports |
+| `assets/` | App icon, noise texture and optional screenshots |
+| `requirements.txt` | Minimal runtime dependencies |
+| `dist/` | *(ignored)* output folder produced by PyInstaller |
+
+---
+
+## 🤖 Implementation Highlights
+
+* **Qt Layouts** – Responsive vertical/horizontal boxes keep controls tidy on resize.
+* **ChromaticNoiseWidget** – Custom `QWidget` that paints a radial gradient + static grain `QPixmap`.
+* **StaticGradientLabel** – Renders the header using a multicolour linear gradient inside a `QPainterPath`.
+* **Smooth Fade‑In** – New previews cross‑fade via `QGraphicsOpacityEffect` and a 250 ms `QPropertyAnimation`.
+* **Pillow + NumPy‑free** – Image processing sticks to stock Pillow; no heavyweight SciPy stack needed.
+
+---
+
+## 👩‍💻 Development Mode
+
+```bash
+# lint + style checks
+pip install ruff black
+ruff check .
+black --check .
+
+# run automatic tests (todo)
+pytest
+```
+
+---
+
+## 🙌 Contributing
+
+Pull requests are welcome! Please:
+
+1. Fork the project, create a branch.
+2. Follow existing code‑style (`black`, 120 chars, type hints).
+3. Update docs / screenshots if the UI changes.
+4. Submit a concise PR describing *what* & *why*.
+
+---
+
+## 📝 License
+
+This project is licensed under the **MIT License** – see [`LICENSE`](LICENSE) for details.
+
+---
+
+## ✍️ Author
+
+**Ricardo Kupper** – [ricardokupper.com](https://ricardokupper.com)
+
+Feel free to reach out on [Twitter](https://twitter.com/ricardokupper) or open an issue on GitHub.
