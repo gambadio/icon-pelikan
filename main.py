@@ -148,9 +148,6 @@ class IconPelikan(QMainWindow):
 
         # ----------  Controls  ----------
         # 1.  Actions
-        self.open_btn = QPushButton("Open Image")
-        self.open_btn.clicked.connect(self.open_image)
-
         self.pick_colour_btn = QPushButton("Pick Colour")
         self.pick_colour_btn.clicked.connect(self.pick_colour)
 
@@ -226,14 +223,13 @@ class IconPelikan(QMainWindow):
             href_action="#remove",
             font_size_pt=12,
         )
+        self.remove_image_label.setStyleSheet("color:#ff6666;")
         self.remove_image_label.setVisible(False)
 
         # ----------  Layout assembly ----------
         # controls column
         ctrl_col = QVBoxLayout()
         ctrl_col.setSpacing(12)
-
-        ctrl_col.addWidget(self.open_btn)
 
         canvas_widget, self.icon_sz_value_lbl = self._labelled(
             "Canvas px", self.icon_sz, value_display=True
@@ -265,7 +261,6 @@ class IconPelikan(QMainWindow):
 
         # apply uniform button styling / sizing
         for btn in (
-            self.open_btn,
             self.pick_colour_btn,
             self.save_png_btn,
             self.save_icns_btn,
@@ -284,11 +279,21 @@ class IconPelikan(QMainWindow):
         root.addWidget(self.preview_label, 5)
         root.addWidget(controls_widget, 2)
 
+        self.info_label = QLabel()
+        self._setup_action_label(
+            self.info_label,
+            "Info",
+            self.show_info_dialog,
+            href_action="#info",
+            font_size_pt=11,
+        )
+        self.statusBar().addWidget(self.info_label, 0)
+        self.statusBar().setStyleSheet(
+            "QStatusBar { padding-left:8px; color:#d8d9da; } QStatusBar::item { border:0; }"
+        )
+
         # drag‑and‑drop
         self.setAcceptDrops(True)
-
-        # hide native status‑bar – we’ll flash tooltip messages instead
-        self.statusBar().hide()
 
         # initial slider labels
         self._update_icon_sz_display(self.icon_sz.value())
@@ -333,11 +338,18 @@ class IconPelikan(QMainWindow):
         self.preview_label.setText(
             f"<span style='color:#d8d9da; font-size:{font_pt}pt;'>"
             "Drop an image or click "
-            "<a href='#open' style='color:#d8d9da; text-decoration:none; "
-            "border-bottom:1px dashed #d8d9da;'>Open</a>"
+            "<a href='#open' style='color:#d8d9da; text-decoration:underline;'>Open</a>"
             "</span>"
         )
         self.preview_label.linkActivated.connect(self._handle_preview_link)
+    def show_info_dialog(self):
+        QMessageBox.information(
+            self,
+            "About Icon Pelikan",
+            "<b>Icon Pelikan</b><br><br>"
+            "A tiny brutalist icon‑maker.<br>"
+            "© 2024 Pelikan Co — MIT Licence.",
+        )
 
     def _handle_preview_link(self, href: str):
         if href == "#open":
