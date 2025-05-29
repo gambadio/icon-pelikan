@@ -671,9 +671,6 @@ class IconPelikan(QMainWindow):
             "<br><br>"
             "© 2025&nbsp;Ricardo Kupper<br>"
             "Built with PySide6 &amp; Python."
-            "<br><br>"
-            "<b>License:</b> Polyform&nbsp;Noncommercial&nbsp;1.0.0 – free for personal and internal use.<br>"
-            "Generated icons may be used commercially. Contact the author for commercial use of the source code."
         )
 
         box.exec()

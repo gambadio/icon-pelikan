@@ -185,5 +185,5 @@ The PNG/.icns files you export with Icon Pelikan are **yours**. Feel free to u
 
 ## ✍️ Author
 
-**Ricardo Kupper** – [ricardokupper.com](https://ricardokupper.com)
+**Ricardo Kupper** – [gambadio@adalala.com](gambadio@adalala.com)
 
