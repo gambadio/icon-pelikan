@@ -669,7 +669,7 @@ class IconPelikan(QMainWindow):
             "<b>Icon Pelikan&nbsp;v0.1.0</b><br><br>"
             "A brutalist, grainy &amp; ultra‑minimal GUI for lightning‑fast icon generation."
             "<br><br>"
-            "© 2024&nbsp;Ricardo Kupper<br>"
+            "© 2025&nbsp;Ricardo Kupper<br>"
             "Built with PySide6 &amp; Python."
         )
 
