@@ -15,6 +15,7 @@ from PySide6.QtCore import (
     QSize,
     QPropertyAnimation,
     QEasingCurve,
+    QTimer,
 )
 from PySide6.QtGui import (
     QPixmap,
@@ -24,6 +25,7 @@ from PySide6.QtGui import (
     QColor,
     QGuiApplication,
     QFont,
+    QPainterPath,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -111,6 +113,62 @@ class ChromaticNoiseWidget(QWidget):
                     px[x, y] = random.randint(0, 255)
             img.save(NOISE_IMG)
         return QPixmap(str(NOISE_IMG))
+
+
+# ----------  Animated rainbow header ----------
+class AnimatedGradientLabel(QLabel):
+    """Displays “ICON PELIKAN” with a shifting rainbow gradient."""
+
+    def __init__(self, text: str, parent: QWidget | None = None):
+        super().__init__(text, parent)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setAlignment(Qt.AlignCenter)
+
+        # Bold, large title font
+        font = QFont("Helvetica Neue", 48, QFont.Bold)
+        self.setFont(font)
+
+        # Animation state
+        self._shift = 0.0
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._advance)
+        self._timer.start(60)  # ~16 fps
+
+    # ----------  Animation tick ----------
+    def _advance(self):
+        self._shift = (self._shift + 0.005) % 1.0
+        self.update()
+
+    # ----------  Paint gradient text ----------
+    def paintEvent(self, ev):  # noqa: N802
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.TextAntialiasing)
+
+        rect = self.rect()
+        grad = QLinearGradient(rect.left(), 0, rect.right(), 0)
+
+        # Orange → Red → Magenta → Purple → Blue
+        stops = [
+            (0.00, QColor("#ff6a00")),
+            (0.33, QColor("#ff0066")),
+            (0.66, QColor("#9b2eff")),
+            (1.00, QColor("#0066ff")),
+        ]
+        for pos, col in stops:
+            grad.setColorAt((pos + self._shift) % 1.0, col)
+
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(grad)
+
+        path = QPainterPath()
+        fm = self.fontMetrics()
+        text_width = fm.horizontalAdvance(self.text())
+        baseline = (rect.height() + fm.ascent() - fm.descent()) / 2
+        x = (rect.width() - text_width) / 2
+        path.addText(x, baseline, self.font(), self.text())
+
+        painter.drawPath(path)
 
 
 # ----------  Main window  ----------
@@ -299,6 +357,11 @@ class IconPelikan(QMainWindow):
         main_vertical_layout = QVBoxLayout(wrapper) # 'wrapper' is the ChromaticNoiseWidget
         main_vertical_layout.setContentsMargins(32, 32, 32, 32) # Overall window padding
         main_vertical_layout.setSpacing(20) # Space between top content and info_label below it
+
+        # Animated rainbow title
+        self.header_label = AnimatedGradientLabel("ICON PELIKAN")
+        self.header_label.setFixedHeight(80)
+        main_vertical_layout.addWidget(self.header_label, 0, Qt.AlignHCenter)
 
         # Container for the preview and controls (top part of the UI)
         top_content_area = QWidget()
@@ -600,16 +663,29 @@ class IconPelikan(QMainWindow):
         self._fade_anim.setEndValue(1.0)
         self._fade_anim.start()
 
-# ----------  Misc ----------
+    # ----------  Misc ----------
     def show_info_dialog(self):
         """Show an informational dialog about the application."""
-        QMessageBox.information(
-            self,
-            "About Icon Pelikan",
-            "Icon Pelikan v0.1.0\\n\\n"
-            "A brutalist, grainy & ultra-minimal GUI for lightning-fast icon generation.\\n\\n"
-            "Created with PySide6 and Python."
+        box = QMessageBox(self)
+        box.setWindowTitle("About Icon Pelikan")
+
+        # Use the app icon instead of the default folder graphic
+        icon_pm = QPixmap(str(APP_ICON)).scaled(
+            96, 96, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
+        box.setIconPixmap(icon_pm)
+
+        # Rich‑text content
+        box.setTextFormat(Qt.RichText)
+        box.setText(
+            "<b>Icon Pelikan&nbsp;v0.1.0</b><br><br>"
+            "A brutalist, grainy &amp; ultra‑minimal GUI for lightning‑fast icon generation."
+            "<br><br>"
+            "© 2024&nbsp;Ricardo Kupper<br>"
+            "Built with PySide6 &amp; Python."
+        )
+
+        box.exec()
 
     def _combobox_style(self) -> str:
         return """
