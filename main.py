@@ -1,24 +1,28 @@
 """
 main.py
-Icon Pelikan — brutalist grainy dark GUI for fast icon generation.
+Icon Pelikan — brutalist, grainy & ultra‑minimal GUI for lightning‑fast icon generation.
 """
 
-import os
 import random
 import sys
 from pathlib import Path
 
 from PIL import Image
 
-from PySide6.QtCore import Qt, QSize
+from PySide6.QtCore import (
+    Qt,
+    QSize,
+    QPropertyAnimation,
+    QEasingCurve,
+)
 from PySide6.QtGui import (
     QPixmap,
     QImage,
     QPainter,
     QLinearGradient,
     QColor,
-    QAction,
     QGuiApplication,
+    QFont,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -35,14 +39,34 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QMessageBox,
     QSizePolicy,
+    QToolTip,
+    QGraphicsOpacityEffect,
 )
 
 from icon_processor import create_icon, export_iconset, to_icns
 
 
+# ----------  Constants & assets ----------
 ASSETS = Path(__file__).resolve().parent / "assets"
 APP_ICON = ASSETS / "icon_pelikan.png"
 NOISE_IMG = ASSETS / "noise.png"
+
+BTN_MIN_W = 170  # keeps every button aligned
+BTN_STYLE = """
+QPushButton {
+    color: #d8d9da;
+    background-color: #3a3e47;
+    border: 1px solid #4f545c;
+    padding: 6px 14px;
+    border-radius: 4px;
+}
+QPushButton:hover   { background-color: #4f545c; }
+QPushButton:pressed { background-color: #282c34; }
+QPushButton:disabled{
+    background-color: #2a2d34;
+    color: #6c6f73;
+}
+"""
 
 
 def pil_to_qpixmap(img: Image.Image) -> QPixmap:
@@ -54,26 +78,28 @@ def pil_to_qpixmap(img: Image.Image) -> QPixmap:
 
 # ----------  Background widget with gradient + noise  ----------
 class ChromaticNoiseWidget(QWidget):
+    """Paints a subtle radial gradient plus static grain texture."""
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WA_StyledBackground)
         self.noise = self._ensure_noise()
 
-    # paintEvent → radial gradient + overlaid noise texture
-    def paintEvent(self, ev):
+    def paintEvent(self, ev):  # noqa: N802 (Qt naming)
         painter = QPainter(self)
         rect = self.rect()
 
-        grad = QLinearGradient(0, 0, rect.width(), rect.height())
+        grad = QLinearGradient(rect.topLeft(), rect.bottomRight())
         grad.setColorAt(0.0, QColor("#0e0e10"))
         grad.setColorAt(1.0, QColor("#2f3540"))
-        painter.fillRect(rect, grad)                  # gradient background
+        painter.fillRect(rect, grad)            # gradient background
 
-        painter.setOpacity(0.08)                      # gentle grain
+        painter.setOpacity(0.08)                # gentle grain overlay
         painter.drawPixmap(rect, self.noise)
 
+    # ---------- helpers ----------
     def _ensure_noise(self) -> QPixmap:
-        """Build a noise texture once + cache as PNG for subsequent runs."""
+        """Build a noise texture once & cache as PNG for subsequent runs."""
         if not NOISE_IMG.exists():
             NOISE_IMG.parent.mkdir(parents=True, exist_ok=True)
             w = h = 512
@@ -90,111 +116,315 @@ class ChromaticNoiseWidget(QWidget):
 class IconPelikan(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Icon Pelikan")
+        self.setWindowTitle("Icon Pelikan")
         self.setWindowIcon(QPixmap(str(APP_ICON)))
 
+        # runtime state
         self.source_img: Image.Image | None = None
         self.preview_img: Image.Image | None = None
 
+        # value‑labels for sliders
+        self.icon_sz_value_lbl: QLabel | None = None
+        self.scale_sl_value_lbl: QLabel | None = None
+        self.rad_sl_value_lbl: QLabel | None = None
+
+        # central noise‑backdrop wrapper
         wrapper = ChromaticNoiseWidget()
         self.setCentralWidget(wrapper)
 
-        # ----- preview pane -----
-        self.preview_label = QLabel("Drop an image or click ‘Open’")
-        self.preview_label.setAlignment(Qt.AlignCenter)
-        self.preview_label.setStyleSheet("color:#d8d9da; font-size:14px;")
-        self.preview_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # ----------  Preview pane ----------
+        self.preview_label = QLabel(alignment=Qt.AlignCenter)
+        self.preview_label.setSizePolicy(
+            QSizePolicy.Expanding, QSizePolicy.Expanding
+        )
+        self._set_initial_preview_text()
 
-        # ----- controls -----
-        open_btn = QPushButton("Open Image")
-        open_btn.clicked.connect(self.open_image)
+        # opacity‑fade effect whenever pixmap updates
+        self._fade_eff = QGraphicsOpacityEffect(self.preview_label)
+        self.preview_label.setGraphicsEffect(self._fade_eff)
+        self._fade_anim = QPropertyAnimation(self._fade_eff, b"opacity", self)
+        self._fade_anim.setDuration(250)
+        self._fade_anim.setEasingCurve(QEasingCurve.InOutQuad)
 
-        save_png_btn = QPushButton("Save PNG")
-        save_png_btn.clicked.connect(self.save_png)
+        # ----------  Controls  ----------
+        # 1.  Actions
+        self.open_btn = QPushButton("Open Image")
+        self.open_btn.clicked.connect(self.open_image)
 
-        save_icns_btn = QPushButton("Save .icns")
-        save_icns_btn.clicked.connect(self.save_icns)
+        self.pick_colour_btn = QPushButton("Pick Colour")
+        self.pick_colour_btn.clicked.connect(self.pick_colour)
 
-        # sliders
+        self.save_png_btn = QPushButton("Save PNG")
+        self.save_png_btn.clicked.connect(self.save_png)
+
+        self.save_icns_btn = QPushButton("Save .icns")
+        self.save_icns_btn.clicked.connect(self.save_icns)
+
+        # 2.  Sliders
         self.icon_sz = QSlider(Qt.Horizontal, minimum=128, maximum=1024, value=512)
         self.scale_sl = QSlider(Qt.Horizontal, minimum=50, maximum=100, value=86)
         self.rad_sl = QSlider(Qt.Horizontal, minimum=0, maximum=256, value=100)
-        for sl in (self.icon_sz, self.scale_sl, self.rad_sl):
-            sl.valueChanged.connect(self.rebuild)
 
-        shape_box = QComboBox()
-        shape_box.addItems(["rounded", "circle"])
-        shape_box.currentTextChanged.connect(self.rebuild)
-        self.shape_box = shape_box
+        self.icon_sz.valueChanged.connect(self._update_icon_sz_display)
+        self.scale_sl.valueChanged.connect(self._update_scale_display)
+        self.rad_sl.valueChanged.connect(self._update_rad_display)
 
+        # 3.  Shape combo
+        self.shape_box = QComboBox()
+        self.shape_box.addItems(["rounded", "circle"])
+        self.shape_box.currentTextChanged.connect(self.rebuild)
+        self.shape_box.setStyleSheet(self._combobox_style())
+
+        # 4.  Presets
+        self.presets = {
+            "Default": {
+                "canvas": 512,
+                "scale": 86,
+                "radius": 100,
+                "shape": "rounded",
+            },
+            "macOS · 1024 px": {
+                "canvas": 1024,
+                "scale": 90,
+                "radius": 180,
+                "shape": "rounded",
+            },
+            "iOS · 1024 px": {
+                "canvas": 1024,
+                "scale": 100,
+                "radius": 230,
+                "shape": "rounded",
+            },
+            "Circle · 512 px": {
+                "canvas": 512,
+                "scale": 90,
+                "radius": 256,
+                "shape": "circle",
+            },
+            "Square · 512 px": {
+                "canvas": 512,
+                "scale": 100,
+                "radius": 0,
+                "shape": "rounded",
+            },
+        }
+        self.preset_box = QComboBox()
+        self.preset_box.addItems(list(self.presets.keys()))
+        self.preset_box.currentTextChanged.connect(self.apply_preset)
+        self.preset_box.setStyleSheet(self._combobox_style())
+
+        # 5.  Misc
         self.bg_chk = QCheckBox("Solid background")
         self.bg_chk.toggled.connect(self.rebuild)
         self.bg_colour: QColor | None = QColor("#111111")
-        colour_btn = QPushButton("Pick colour")
-        colour_btn.clicked.connect(self.pick_colour)
 
-        # layout
+        self.remove_image_label = QLabel()
+        self._setup_action_label(
+            self.remove_image_label,
+            "Remove Image",
+            self.clear_image,
+            href_action="#remove",
+            font_size_pt=12,
+        )
+        self.remove_image_label.setVisible(False)
+
+        # ----------  Layout assembly ----------
+        # controls column
         ctrl_col = QVBoxLayout()
-        ctrl_col.addWidget(open_btn)
-        ctrl_col.addWidget(self._labelled("Canvas px", self.icon_sz))
-        ctrl_col.addWidget(self._labelled("Scale %", self.scale_sl))
-        ctrl_col.addWidget(self._labelled("Radius px", self.rad_sl))
-        ctrl_col.addWidget(self._labelled("Shape", shape_box))
+        ctrl_col.setSpacing(12)
+
+        ctrl_col.addWidget(self.open_btn)
+
+        canvas_widget, self.icon_sz_value_lbl = self._labelled(
+            "Canvas px", self.icon_sz, value_display=True
+        )
+        ctrl_col.addWidget(canvas_widget)
+
+        scale_widget, self.scale_sl_value_lbl = self._labelled(
+            "Scale %", self.scale_sl, value_display=True
+        )
+        ctrl_col.addWidget(scale_widget)
+
+        radius_widget, self.rad_sl_value_lbl = self._labelled(
+            "Radius px", self.rad_sl, value_display=True
+        )
+        ctrl_col.addWidget(radius_widget)
+
+        shape_widget, _ = self._labelled("Shape", self.shape_box)
+        ctrl_col.addWidget(shape_widget)
+
+        preset_widget, _ = self._labelled("Preset", self.preset_box)
+        ctrl_col.addWidget(preset_widget)
+
         ctrl_col.addWidget(self.bg_chk)
-        ctrl_col.addWidget(colour_btn)
-        ctrl_col.addWidget(save_png_btn)
-        ctrl_col.addWidget(save_icns_btn)
+        ctrl_col.addWidget(self.pick_colour_btn)
+        ctrl_col.addWidget(self.save_png_btn)
+        ctrl_col.addWidget(self.save_icns_btn)
+        ctrl_col.addWidget(self.remove_image_label)
         ctrl_col.addStretch(1)
+
+        # apply uniform button styling / sizing
+        for btn in (
+            self.open_btn,
+            self.pick_colour_btn,
+            self.save_png_btn,
+            self.save_icns_btn,
+        ):
+            btn.setMinimumWidth(BTN_MIN_W)
+            btn.setStyleSheet(BTN_STYLE)
+            btn.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+
+        # put controls in a QWidget so it can have its own QVBoxLayout margins
+        controls_widget = QWidget()
+        controls_widget.setLayout(ctrl_col)
 
         root = QHBoxLayout(wrapper)
         root.setContentsMargins(32, 32, 32, 32)
-        root.addWidget(self.preview_label, 4)
-        root.addLayout(ctrl_col, 2)
+        root.setSpacing(32)
+        root.addWidget(self.preview_label, 5)
+        root.addWidget(controls_widget, 2)
 
-        # drag-and-drop
+        # drag‑and‑drop
         self.setAcceptDrops(True)
 
-        # menu bar tiny ‘About’
-        about = QAction("About Icon Pelikan …", self)
-        about.triggered.connect(
-            lambda: QMessageBox.information(
-                self,
-                "About Icon Pelikan",
-                "A tiny brutalist icon generator written in Python (PySide 6 + Pillow).",
-            )
+        # hide native status‑bar – we’ll flash tooltip messages instead
+        self.statusBar().hide()
+
+        # initial slider labels
+        self._update_icon_sz_display(self.icon_sz.value())
+        self._update_scale_display(self.scale_sl.value())
+        self._update_rad_display(self.rad_sl.value())
+
+    # ----------  Slots / helpers ----------
+    # 1.  Preset‑apply
+    def apply_preset(self, name: str):
+        if name not in self.presets:
+            return
+        cfg = self.presets[name]
+
+        # block signals while we set values
+        blockers = [
+            self.icon_sz.blockSignals(True),
+            self.scale_sl.blockSignals(True),
+            self.rad_sl.blockSignals(True),
+            self.shape_box.blockSignals(True),
+        ]
+        self.icon_sz.setValue(cfg["canvas"])
+        self.scale_sl.setValue(cfg["scale"])
+        self.rad_sl.setValue(cfg["radius"])
+        self.shape_box.setCurrentText(cfg["shape"])
+
+        # unblock
+        self.icon_sz.blockSignals(False)
+        self.scale_sl.blockSignals(False)
+        self.rad_sl.blockSignals(False)
+        self.shape_box.blockSignals(False)
+
+        # refresh value‑labels + preview
+        self._update_icon_sz_display(cfg["canvas"])
+        self._update_scale_display(cfg["scale"])
+        self._update_rad_display(cfg["radius"])
+        self.rebuild()
+
+    # 2.  Initial preview message
+    def _set_initial_preview_text(self):
+        font_pt = QApplication.font().pointSize() + 2
+        self.preview_label.setTextFormat(Qt.RichText)
+        self.preview_label.setText(
+            f"<span style='color:#d8d9da; font-size:{font_pt}pt;'>"
+            "Drop an image or click "
+            "<a href='#open' style='color:#d8d9da; text-decoration:none; "
+            "border-bottom:1px dashed #d8d9da;'>Open</a>"
+            "</span>"
         )
-        self.menuBar().addAction(about)
+        self.preview_label.linkActivated.connect(self._handle_preview_link)
 
-    # ---------- helpers ----------
-    def _labelled(self, text: str, widget: QWidget) -> QWidget:
-        label = QLabel(text)
-        label.setStyleSheet("color:#d8d9da;")
+    def _handle_preview_link(self, href: str):
+        if href == "#open":
+            self.open_image()
+
+    # 3.  Uniform label‑link helper
+    @staticmethod
+    def _setup_action_label(
+        label: QLabel,
+        text: str,
+        slot_func,
+        href_action: str,
+        font_size_pt: int,
+    ):
+        label.setTextFormat(Qt.RichText)
+        label.setText(
+            f"<a href='{href_action}' style='color:#d8d9da; text-decoration:none; "
+            f"font-size:{font_size_pt}pt;'>{text}</a>"
+        )
+        label.linkActivated.connect(lambda _: slot_func())
+
+    # 4.  Slider wrappers
+    def _labelled(
+        self,
+        header: str,
+        widget: QWidget,
+        value_display: bool = False,
+    ) -> tuple[QWidget, QLabel | None]:
+        hdr_lbl = QLabel(header)
+        hdr_lbl.setStyleSheet("color:#d8d9da;")
+        value_lbl = None
+
+        header_row = QHBoxLayout()
+        header_row.addWidget(hdr_lbl)
+
+        if value_display:
+            value_lbl = QLabel()
+            value_lbl.setStyleSheet("color:#d8d9da; padding-left:6px;")
+            value_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            header_row.addWidget(value_lbl)
+            header_row.setStretchFactor(hdr_lbl, 1)
+            header_row.setStretchFactor(value_lbl, 0)
+
         box = QVBoxLayout()
-        box.addWidget(label)
+        box.addLayout(header_row)
         box.addWidget(widget)
-        w = QWidget()
-        w.setLayout(box)
-        return w
+        container = QWidget()
+        container.setLayout(box)
+        return container, value_lbl
 
+    def _update_icon_sz_display(self, v: int):
+        if self.icon_sz_value_lbl:
+            self.icon_sz_value_lbl.setText(f"{v}px")
+        self.rebuild()
+
+    def _update_scale_display(self, v: int):
+        if self.scale_sl_value_lbl:
+            self.scale_sl_value_lbl.setText(f"{v}%")
+        self.rebuild()
+
+    def _update_rad_display(self, v: int):
+        if self.rad_sl_value_lbl:
+            self.rad_sl_value_lbl.setText(f"{v}px")
+        self.rebuild()
+
+    # 5.  Colour‑picker
     def pick_colour(self):
-        col = QColorDialog.getColor(self.bg_colour, self, options=QColorDialog.DontUseNativeDialog)
+        col = QColorDialog.getColor(
+            self.bg_colour, self, options=QColorDialog.DontUseNativeDialog
+        )
         if col.isValid():
             self.bg_colour = col
             self.bg_chk.setChecked(True)
             self.rebuild()
 
-    # ---------- drag-and-drop ----------
-    def dragEnterEvent(self, ev):
+    # 6.  Drag‑and‑drop events
+    def dragEnterEvent(self, ev):  # noqa: N802
         if ev.mimeData().hasUrls():
             ev.acceptProposedAction()
 
-    def dropEvent(self, ev):
+    def dropEvent(self, ev):  # noqa: N802
         for url in ev.mimeData().urls():
             if url.isLocalFile():
                 self.load_image(Path(url.toLocalFile()))
                 break
 
-    # ---------- file actions ----------
+    # 7.  File actions
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -209,47 +439,60 @@ class IconPelikan(QMainWindow):
         if not self.preview_img:
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save PNG", str(Path.home() / "icon.png"), "PNG (*.png)"
+            self,
+            "Save PNG",
+            str(Path.home() / "icon.png"),
+            "PNG (*.png)",
         )
         if path:
             self.preview_img.save(path)
-            self.statusBar().showMessage(f"Saved → {path}", 4000)
+            self._flash(f"Saved → {path}")
 
     def save_icns(self):
         if not self.preview_img:
             return
         dest = QFileDialog.getExistingDirectory(self, "Pick folder")
-        if dest:
-            icn = self.preview_img
-            out = export_iconset(icn, Path(dest))
-            try:
-                icns_path = to_icns(out)
-                self.statusBar().showMessage(f".icns generated at {icns_path}", 6000)
-            except Exception as e:
-                QMessageBox.warning(
-                    self,
-                    "iconutil failed",
-                    "macOS `iconutil` couldn’t run.\n"
-                    "Ensure you’re on macOS and Xcode CLT are installed.\n\n"
-                    f"{e}",
-                )
+        if not dest:
+            return
+        try:
+            out_folder = export_iconset(self.preview_img, Path(dest))
+            icns_path = to_icns(out_folder)
+            self._flash(f".icns generated at {icns_path}")
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "iconutil failed",
+                "macOS `iconutil` couldn’t run.\n"
+                "Ensure you’re on macOS and Xcode CLT are installed.\n\n"
+                f"{exc}",
+            )
 
-    # ---------- core ----------
+    # 8.  Core rebuild
     def load_image(self, path: Path):
         try:
             self.source_img = Image.open(path).convert("RGBA")
+            self.remove_image_label.setVisible(True)
             self.rebuild()
         except Exception as exc:
             QMessageBox.warning(self, "Error", f"Couldn’t open file:\n{exc}")
+
+    def clear_image(self):
+        self.source_img = None
+        self.preview_img = None
+        self.remove_image_label.setVisible(False)
+        self._set_initial_preview_text()
+        self.preview_label.setPixmap(QPixmap())
+        self.rebuild()
 
     def rebuild(self):
         if not self.source_img:
             return
 
-        bg = None
-        if self.bg_chk.isChecked() and self.bg_colour:
-            c = self.bg_colour
-            bg = (c.red(), c.green(), c.blue(), 255)
+        bg = (
+            (self.bg_colour.red(), self.bg_colour.green(), self.bg_colour.blue(), 255)
+            if self.bg_chk.isChecked() and self.bg_colour
+            else None
+        )
 
         self.preview_img = create_icon(
             self.source_img,
@@ -260,21 +503,67 @@ class IconPelikan(QMainWindow):
             background=bg,
         )
         pm = pil_to_qpixmap(self.preview_img)
-        self.preview_label.setPixmap(pm.scaledToHeight(400, Qt.SmoothTransformation))
+        pm = pm.scaledToHeight(
+            420, Qt.SmoothTransformation
+        )  # fixed preview height for consistency
+        self.preview_label.setPixmap(pm)
         self.preview_label.setText("")
 
-# ----------  Bootstrap  ----------
-def main():
-    QApplication.setApplicationName("Icon Pelikan")
-    QApplication.setOrganizationName("Pelikan Co")
-    app = QApplication(sys.argv)
+        # fade‑in animation
+        self._fade_anim.stop()
+        self._fade_eff.setOpacity(0.0)
+        self._fade_anim.setStartValue(0.0)
+        self._fade_anim.setEndValue(1.0)
+        self._fade_anim.start()
 
-    # enable high-DPI
+    # ----------  Misc ----------
+    def _combobox_style(self) -> str:
+        return """
+            QComboBox {
+                color: #d8d9da;
+                background-color: #2a2d34;
+                border: 1px solid #4f545c;
+                padding: 4px 22px 4px 6px;
+                border-radius: 3px;
+            }
+            QComboBox::drop-down {
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: 20px;
+                border-left: 1px solid #4f545c;
+                background-color: #2a2d34;
+            }
+            QComboBox QAbstractItemView {
+                color: #d8d9da;
+                background-color: #2a2d34;
+                border: 1px solid #4f545c;
+                selection-background-color: #58a6ff;
+                selection-color: #ffffff;
+            }
+        """
+
+    def _flash(self, text: str, msecs: int = 4000):
+        """Bubble‑style toast using QToolTip centred on the window."""
+        center = self.rect().center()
+        global_center = self.mapToGlobal(center)
+        QToolTip.showText(
+            global_center, text, self, self.rect(), msecs
+        )
+
+
+# ----------  Bootstrap ----------
+def main():
+    QApplication.setApplicationName("Icon Pelikan")
+    QApplication.setOrganizationName("Pelikan Co")
+    app = QApplication(sys.argv)
+    app.setFont(QFont("Helvetica Neue", 14))  # slightly larger default font
+
+    # enable high‑DPI
     QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
     QGuiApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     w = IconPelikan()
-    w.resize(QSize(900, 600))
+    w.resize(QSize(960, 640))
     w.show()
     sys.exit(app.exec())
 
