@@ -187,4 +187,3 @@ The PNG/.icns files you export with Icon Pelikan are **yours**. Feel free to u
 
 **Ricardo Kupper** – [ricardokupper.com](https://ricardokupper.com)
 
-Feel free to reach out on [Twitter](https://twitter.com/ricardokupper) or open an issue on GitHub.
