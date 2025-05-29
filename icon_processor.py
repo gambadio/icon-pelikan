@@ -65,7 +65,8 @@ def export_iconset(img: Image.Image, dest: Path) -> Path:
     Creates an *.iconset* folder in *dest* and fills it with the
     PNGs Apple expects.  Returns the folder path.
     """
-    iconset = dest / "IconPelikan.iconset"
+    # Use the actual dest folder directly - iconset is already the .iconset directory
+    iconset = dest
     iconset.mkdir(parents=True, exist_ok=True)
     for size in APPLE_SIZES:
         p1 = iconset / f"icon_{size}x{size}.png"
@@ -81,5 +82,14 @@ def to_icns(iconset: Path) -> Path:
     Returns the .icns path. Raises if iconutil is not found.
     """
     icns_path = iconset.with_suffix(".icns")
-    subprocess.run(["iconutil", "-c", "icns", str(iconset)], check=True)
+    try:
+        subprocess.run(["iconutil", "-c", "icns", str(iconset)], check=True)
+    except subprocess.CalledProcessError as e:
+        # Add more descriptive error message
+        raise RuntimeError(f"iconutil command failed: {e}. Make sure Xcode Command Line Tools are installed.") from e
+    
+    # Verify the file was created
+    if not icns_path.exists():
+        raise FileNotFoundError(f"Expected .icns file was not created at {icns_path}")
+    
     return icns_path

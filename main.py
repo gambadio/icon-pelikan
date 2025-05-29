@@ -6,6 +6,7 @@ Icon Pelikan — brutalist, grainy & ultra‑minimal GUI for lightning‑fast 
 import random
 import sys
 from pathlib import Path
+import shutil # Added for rmtree
 
 from PIL import Image
 
@@ -494,21 +495,56 @@ class IconPelikan(QMainWindow):
     def save_icns(self):
         if not self.preview_img:
             return
-        dest = QFileDialog.getExistingDirectory(self, "Pick folder")
-        if not dest:
+
+        default_save_path = Path.home() / "icon.icns"
+        icns_save_path_str, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save .icns File",
+            str(default_save_path),
+            "Apple Icon Image (*.icns)"
+        )
+
+        if not icns_save_path_str:
             return
+
+        icns_save_path = Path(icns_save_path_str)
+        # Use the chosen filename (without .icns) + .iconset as the temporary folder name
+        temp_iconset_folder_path = icns_save_path.with_suffix(".iconset")
+
         try:
-            out_folder = export_iconset(self.preview_img, Path(dest))
-            icns_path = to_icns(out_folder)
-            self._flash(f".icns generated at {icns_path}")
+            # Make sure the temp folder doesn't exist
+            if temp_iconset_folder_path.exists():
+                shutil.rmtree(temp_iconset_folder_path)
+                
+            # Create the .iconset folder from the image
+            export_iconset(self.preview_img, temp_iconset_folder_path)
+
+            # Convert the .iconset folder to an .icns file
+            created_icns_path = to_icns(temp_iconset_folder_path)
+            
+            # Ensure the file is at the location chosen by the user
+            if created_icns_path.exists() and created_icns_path != icns_save_path and icns_save_path.parent.exists():
+                # If the paths differ, we need to move the file
+                created_icns_path.rename(icns_save_path)
+            
+            self._flash(f".icns generated at {icns_save_path}")
+
         except Exception as exc:
             QMessageBox.warning(
                 self,
                 "iconutil failed",
-                "macOS `iconutil` couldn’t run.\n"
+                "macOS `iconutil` couldn’t run or another error occurred.\n"
                 "Ensure you’re on macOS and Xcode CLT are installed.\n\n"
                 f"{exc}",
             )
+        finally:
+            # Clean up the temporary .iconset folder
+            if temp_iconset_folder_path.exists() and temp_iconset_folder_path.is_dir():
+                try:
+                    shutil.rmtree(temp_iconset_folder_path)
+                except Exception as e:
+                    # Log or handle folder removal error if necessary
+                    print(f"Error removing temporary folder {temp_iconset_folder_path}: {e}")
 
     # 8.  Core rebuild
     def load_image(self, path: Path):
