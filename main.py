@@ -288,8 +288,10 @@ class IconPelikan(QMainWindow):
             font_size_pt=11,
         )
         self.statusBar().addWidget(self.info_label, 0)
+        self.statusBar().setSizeGripEnabled(False)
         self.statusBar().setStyleSheet(
-            "QStatusBar { padding-left:8px; color:#d8d9da; } QStatusBar::item { border:0; }"
+            "QStatusBar{background:transparent; padding-left:14px; color:#d8d9da;} "
+            "QStatusBar::item{border:0;}"
         )
 
         # drag‑and‑drop
@@ -489,11 +491,16 @@ class IconPelikan(QMainWindow):
             QMessageBox.warning(self, "Error", f"Couldn’t open file:\n{exc}")
 
     def clear_image(self):
+        # wipe state
         self.source_img = None
         self.preview_img = None
         self.remove_image_label.setVisible(False)
+
+        # clear previous pixmap/text, then show the drag‑hint
+        self.preview_label.clear()
         self._set_initial_preview_text()
-        self.preview_label.setPixmap(QPixmap())
+
+        # refresh everything
         self.rebuild()
 
     def rebuild(self):
