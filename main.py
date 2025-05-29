@@ -15,7 +15,6 @@ from PySide6.QtCore import (
     QSize,
     QPropertyAnimation,
     QEasingCurve,
-    QTimer,
 )
 from PySide6.QtGui import (
     QPixmap,
@@ -115,9 +114,9 @@ class ChromaticNoiseWidget(QWidget):
         return QPixmap(str(NOISE_IMG))
 
 
-# ----------  Animated rainbow header ----------
-class AnimatedGradientLabel(QLabel):
-    """Displays “ICON PELIKAN” with a shifting rainbow gradient."""
+# ----------  Static rainbow header ----------
+class StaticGradientLabel(QLabel):
+    """Displays "ICON PELIKAN" with a static rainbow gradient."""
 
     def __init__(self, text: str, parent: QWidget | None = None):
         super().__init__(text, parent)
@@ -127,17 +126,6 @@ class AnimatedGradientLabel(QLabel):
         # Bold, large title font
         font = QFont("Helvetica Neue", 48, QFont.Bold)
         self.setFont(font)
-
-        # Animation state
-        self._shift = 0.0
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._advance)
-        self._timer.start(60)  # ~16 fps
-
-    # ----------  Animation tick ----------
-    def _advance(self):
-        self._shift = (self._shift + 0.005) % 1.0
-        self.update()
 
     # ----------  Paint gradient text ----------
     def paintEvent(self, ev):  # noqa: N802
@@ -156,7 +144,7 @@ class AnimatedGradientLabel(QLabel):
             (1.00, QColor("#0066ff")),
         ]
         for pos, col in stops:
-            grad.setColorAt((pos + self._shift) % 1.0, col)
+            grad.setColorAt(pos, col)
 
         painter.setPen(Qt.NoPen)
         painter.setBrush(grad)
@@ -359,7 +347,7 @@ class IconPelikan(QMainWindow):
         main_vertical_layout.setSpacing(20) # Space between top content and info_label below it
 
         # Animated rainbow title
-        self.header_label = AnimatedGradientLabel("ICON PELIKAN")
+        self.header_label = StaticGradientLabel("ICON PELIKAN")
         self.header_label.setFixedHeight(80)
         main_vertical_layout.addWidget(self.header_label, 0, Qt.AlignHCenter)
 
