@@ -305,7 +305,18 @@ class IconPelikan(QMainWindow):
         # Margins are handled by main_vertical_layout, so no margins here for top_content_layout itself
         top_content_layout.setContentsMargins(0, 0, 0, 0)
         top_content_layout.setSpacing(32) # Spacing between preview_label and controls_widget
-        top_content_layout.addWidget(self.preview_label, 5)
+
+        # --- Preview + “remove image” stacked vertically ---
+        preview_container = QWidget()
+        preview_vbox = QVBoxLayout(preview_container)
+        preview_vbox.setContentsMargins(0, 0, 0, 0)
+        preview_vbox.setSpacing(6)
+        # keep the whole stack vertically centred in the available space
+        preview_vbox.addStretch(1)
+        preview_vbox.addWidget(self.preview_label, alignment=Qt.AlignCenter)
+        preview_vbox.addWidget(self.remove_image_label, alignment=Qt.AlignCenter)
+        preview_vbox.addStretch(1)
+        top_content_layout.addWidget(preview_container, 5)
         top_content_layout.addWidget(controls_widget, 2)
 
         main_vertical_layout.addWidget(top_content_area, 1) # Add top area, it takes most space (stretch 1)
