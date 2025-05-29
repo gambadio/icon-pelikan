@@ -226,11 +226,24 @@ class IconPelikan(QMainWindow):
         self.remove_image_label.setStyleSheet("color:#ff6666;")
         self.remove_image_label.setVisible(False)
 
-        # ----------  Layout assembly ----------
         # controls column
         ctrl_col = QVBoxLayout()
         ctrl_col.setSpacing(12)
 
+        # Add Info label (no status bar)
+        self.info_label = QLabel()
+        self._setup_action_label(
+            self.info_label,
+            "Info",
+            self.show_info_dialog,
+            href_action="#info",
+            font_size_pt=14,
+        )
+        # Adjusted style for bottom-left placement, removing specific padding
+        self.info_label.setStyleSheet("color:#d8d9da; font-size:14pt;")
+        # The info_label is no longer added to ctrl_col here.
+
+        # ----------  Layout assembly ----------
         canvas_widget, self.icon_sz_value_lbl = self._labelled(
             "Canvas px", self.icon_sz, value_display=True
         )
@@ -273,26 +286,30 @@ class IconPelikan(QMainWindow):
         controls_widget = QWidget()
         controls_widget.setLayout(ctrl_col)
 
-        root = QHBoxLayout(wrapper)
-        root.setContentsMargins(32, 32, 32, 32)
-        root.setSpacing(32)
-        root.addWidget(self.preview_label, 5)
-        root.addWidget(controls_widget, 2)
+        # 'wrapper' is the ChromaticNoiseWidget instance, set as the central widget.
+        # Old layout:
+        # root = QHBoxLayout(wrapper)
+        # root.setContentsMargins(32, 32, 32, 32)
+        # root.setSpacing(32)
+        # root.addWidget(self.preview_label, 5)
+        # root.addWidget(controls_widget, 2)
 
-        self.info_label = QLabel()
-        self._setup_action_label(
-            self.info_label,
-            "Info",
-            self.show_info_dialog,
-            href_action="#info",
-            font_size_pt=11,
-        )
-        self.statusBar().addWidget(self.info_label, 0)
-        self.statusBar().setSizeGripEnabled(False)
-        self.statusBar().setStyleSheet(
-            "QStatusBar{background:transparent; padding-left:14px; color:#d8d9da;} "
-            "QStatusBar::item{border:0;}"
-        )
+        # New layout structure for the main wrapper (ChromaticNoiseWidget)
+        main_vertical_layout = QVBoxLayout(wrapper) # 'wrapper' is the ChromaticNoiseWidget
+        main_vertical_layout.setContentsMargins(32, 32, 32, 32) # Overall window padding
+        main_vertical_layout.setSpacing(20) # Space between top content and info_label below it
+
+        # Container for the preview and controls (top part of the UI)
+        top_content_area = QWidget()
+        top_content_layout = QHBoxLayout(top_content_area)
+        # Margins are handled by main_vertical_layout, so no margins here for top_content_layout itself
+        top_content_layout.setContentsMargins(0, 0, 0, 0)
+        top_content_layout.setSpacing(32) # Spacing between preview_label and controls_widget
+        top_content_layout.addWidget(self.preview_label, 5)
+        top_content_layout.addWidget(controls_widget, 2)
+
+        main_vertical_layout.addWidget(top_content_area, 1) # Add top area, it takes most space (stretch 1)
+        main_vertical_layout.addWidget(self.info_label, 0, Qt.AlignBottom | Qt.AlignLeft) # Add info_label at bottom-left
 
         # drag‑and‑drop
         self.setAcceptDrops(True)
@@ -344,20 +361,14 @@ class IconPelikan(QMainWindow):
             "</span>"
         )
         self.preview_label.linkActivated.connect(self._handle_preview_link)
-    def show_info_dialog(self):
-        QMessageBox.information(
-            self,
-            "About Icon Pelikan",
-            "<b>Icon Pelikan</b><br><br>"
-            "A tiny brutalist icon‑maker.<br>"
-            "© 2024 Pelikan Co — MIT Licence.",
-        )
 
+    # 3.  Handle preview link clicks
     def _handle_preview_link(self, href: str):
+        """Handle clicks on links in the preview area."""
         if href == "#open":
             self.open_image()
 
-    # 3.  Uniform label‑link helper
+    # 4.  Uniform label‑link helper
     @staticmethod
     def _setup_action_label(
         label: QLabel,
@@ -535,7 +546,17 @@ class IconPelikan(QMainWindow):
         self._fade_anim.setEndValue(1.0)
         self._fade_anim.start()
 
-    # ----------  Misc ----------
+# ----------  Misc ----------
+    def show_info_dialog(self):
+        """Show an informational dialog about the application."""
+        QMessageBox.information(
+            self,
+            "About Icon Pelikan",
+            "Icon Pelikan v0.1.0\\n\\n"
+            "A brutalist, grainy & ultra-minimal GUI for lightning-fast icon generation.\\n\\n"
+            "Created with PySide6 and Python."
+        )
+
     def _combobox_style(self) -> str:
         return """
             QComboBox {
@@ -576,10 +597,6 @@ def main():
     QApplication.setOrganizationName("Pelikan Co")
     app = QApplication(sys.argv)
     app.setFont(QFont("Helvetica Neue", 14))  # slightly larger default font
-
-    # enable high‑DPI
-    QGuiApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QGuiApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
 
     w = IconPelikan()
     w.resize(QSize(960, 640))
