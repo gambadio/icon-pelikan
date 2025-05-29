@@ -64,7 +64,9 @@ Drop any **PNG/JPEG/WEBP/TIFF/BMP** or click **Open** to choose a file.
 
 ---
 
-## 📦 Packaging for macOS
+## 📦 Packaging (macOS · Windows · Linux)
+
+### macOS (`.app` bundle)
 
 Create a self‑contained `.app` bundle with [PyInstaller](https://pyinstaller.org):
 
@@ -79,7 +81,31 @@ pyinstaller \
 ```
 
 The finished bundle lives in `dist/Icon Pelikan.app`.  
-Drag it into **/Applications** and it should just work™.
+Drag it into **/Applications** (optionally codesign & notarise) and it should just work™.
+
+### Windows (`.exe` launcher)
+
+```bash
+pip install pyinstaller
+pyinstaller ^
+  --noconsole ^
+  --windowed ^
+  --name "Icon Pelikan" ^
+  --icon assets\\icon_pelikan.ico ^
+  main.py
+```
+
+The final `Icon Pelikan\\Icon Pelikan.exe` can be zipped or installed with *Inno Setup*.
+
+### Linux (AppImage)
+
+```bash
+pip install pyinstaller
+pyinstaller --noconsole --windowed --name "icon-pelikan" main.py
+# Optional: wrap the resulting folder into an AppImage with appimagetool
+```
+
+All three commands create a **single‑folder `dist/` directory** containing everything needed to run the app on the target OS.
 
 ---
 
@@ -145,7 +171,15 @@ Pull requests are welcome! Please:
 
 ## 📝 License
 
-This project is licensed under the **MIT License** – see [`LICENSE`](LICENSE) for details.
+### Source code
+
+Released under the **Polyform Noncommercial License 1.0.0**.  
+➟ **Free** for personal, academic & internal business use.  
+➟ **Contact the author** for a commercial license if you intend to ship this code inside a paid product or cloud service.
+
+### Icons you generate
+
+The PNG/.icns files you export with Icon Pelikan are **yours**. Feel free to use them in commercial apps, marketing material and client projects—no attribution required.
 
 ---
 
