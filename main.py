@@ -371,6 +371,13 @@ class IconPelikan(QMainWindow):
             "<a href='#open' style='color:#d8d9da; text-decoration:underline;'>Open</a>"
             "</span>"
         )
+        # Ensure any previous connections are removed before reconnecting
+        # to prevent multiple calls to _handle_preview_link.
+        try:
+            self.preview_label.linkActivated.disconnect()
+        except RuntimeError:
+            # This can happen if no connections exist yet, which is fine.
+            pass
         self.preview_label.linkActivated.connect(self._handle_preview_link)
 
     # 3.  Handle preview link clicks
