@@ -1,0 +1,1 @@
+Icon Pelikan instantly turns any square image into beautiful Mac-style app icons with grain-textured effects via an intuitive drag-and-drop UI. Supports PNG/.icns export with customizable shapes/backgrounds—perfect for designers needing fast icon generation across platforms.
